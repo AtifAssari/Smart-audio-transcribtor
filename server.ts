@@ -324,11 +324,11 @@ async function startServer() {
 
   const upload = multer({
     storage: storage,
-    limits: { fileSize: 350 * 1024 * 1024 } // 350MB Max to support compressed audio/video chunks
+    limits: { fileSize: 2000 * 1024 * 1024 } // 350MB Max to support compressed audio/video chunks
   });
 
-  app.use(express.json({ limit: "100mb" }));
-  app.use(express.urlencoded({ extended: true, limit: "100mb" }));
+  app.use(express.json({ limit: "2000mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "2000mb" }));
 
   // API Endpoints:
   app.get("/api/health", (req, res) => {

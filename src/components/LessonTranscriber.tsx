@@ -96,7 +96,7 @@ export default function LessonTranscriber({
     }
   }, [selectedCourseId, courses]);
 
-  const MAX_RAW_FILE_SIZE_MB = 350; // Direct upload threshold for local Whisper uploads
+  const MAX_RAW_FILE_SIZE_MB = 2000; // Direct upload threshold for local Whisper uploads
   const MAX_INPUT_FILE_SIZE_MB = 350; // Browser local decoding limit
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -322,7 +322,7 @@ export default function LessonTranscriber({
       } else {
         const fileSizeInMB = file.size / (1024 * 1024);
         if (fileSizeInMB > MAX_RAW_FILE_SIZE_MB) {
-          setErrorMessage(`⚠️ حجم الملف المستورد (${fileSizeInMB.toFixed(1)} ميجابايت) يتجاوز سقف الرفع المباشر بدون ضغط (${MAX_RAW_FILE_SIZE_MB} ميجابايت). يرجى التفضل بتفعيل خيار "الضغط المحلي" أولاً لتسييل وضغط الملف بمقدار 10 أضعاف ورفعه بنجاح.`);
+          setErrorMessage(`⚠️ حجم الملف المستورد (${fileSizeInMB.toFixed(1)} ميجابايت) يتجاوز سقف الرفع المباشر بدون ضغط (2000 ميجابايت). يرجى التفضل بتفعيل خيار "الضغط المحلي" أولاً لتسييل وضغط الملف بمقدار 10 أضعاف ورفعه بنجاح.`);
           return;
         }
       }
@@ -695,7 +695,7 @@ export default function LessonTranscriber({
                         <Upload className="w-6 h-6 text-slate-400 group-hover:text-emerald-500" />
                       </div>
                       <p className="text-xs font-bold text-slate-700">اسحب الملف الصوتي أو المرئي هنا، أو انقر للتصفح</p>
-                      <span className="text-xxs text-slate-400 block font-medium">يدعم صيغ MP3, WAV, M4A, AAC, MP4 وغيرها بحجم أقصى {MAX_INPUT_FILE_SIZE_MB}MB</span>
+                      <span className="text-xxs text-slate-400 block font-medium">يدعم صيغ MP3, WAV, M4A, AAC, MP4 وغيرها بحجم أقصى 2GB (عند إيقاف الضغط المحلي) و 350MB (عند تفعيل الضغط)</span>
                     </>
                   )}
                 </div>
