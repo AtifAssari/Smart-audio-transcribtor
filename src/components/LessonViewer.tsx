@@ -16,6 +16,12 @@ import {
   AlertCircle
 } from "lucide-react";
 
+const isRtlText = (text: string): boolean => {
+  if (!text) return true;
+  const arabicRegex = /[\u0600-\u06FF]/;
+  return arabicRegex.test(text);
+};
+
 interface LessonViewerProps {
   lesson: TranscriptionItem;
   course: Course | undefined;
@@ -285,11 +291,13 @@ export default function LessonViewer({
     return (lesson.transcription.match(regex) || []).length;
   };
 
+  const isRtl = isRtlText(lesson.transcription);
+
   return (
     <div className="flex-1 flex flex-col bg-white h-full relative">
       
       {/* Printable Sheet Wrapper (Hidden on screen, Visible on print) */}
-      <div className="hidden print:block print-only p-12 text-slate-900" dir="rtl">
+      <div className="hidden print:block print-only p-12 text-slate-900" dir={isRtlText(lesson.transcription) ? "rtl" : "ltr"}>
         <div className="border bg-emerald-50/10 border-emerald-100 p-6 rounded-xl mb-6">
           <h2 className="text-xl font-bold text-emerald-800 mb-2">ملخص مختصر للمقالة</h2>
           <p className="text-sm leading-relaxed text-slate-700">{lesson.summary || "تم التفريغ والتنظيم الهيكلي للمحتوى بنجاح."}</p>
@@ -658,20 +666,20 @@ export default function LessonViewer({
                 {/* Content Reader Pane */}
                 <div className="prose prose-slate max-w-none prose-emerald selection:bg-emerald-100 select-text leading-loose text-slate-700 font-sans">
                   
-                  {/* Styled Render of Markdown with RTL custom lists */}
-                  <div className="lessons-transcription-render text-right font-medium text-sm text-slate-700 space-y-5">
+                  {/* Styled Render of Markdown with dynamic RTL/LTR custom lists & alignments */}
+                  <div className={`lessons-transcription-render font-medium text-sm text-slate-700 space-y-5 ${isRtl ? 'text-right' : 'text-left'}`} dir={isRtl ? 'rtl' : 'ltr'}>
                     <Markdown
                       components={{
-                        h1: ({children}) => <h1 className="text-xl lg:text-3xl font-black text-emerald-800 leading-tight border-b border-slate-150 pb-3 mt-4 mb-4 tracking-tight">{children}</h1>,
-                        h2: ({children}) => <h2 className="text-lg lg:text-xl font-black text-slate-800 leading-tight mt-8 mb-4 border-r-4 border-emerald-500 pr-3">{children}</h2>,
-                        h3: ({children}) => <h3 className="text-base font-bold text-slate-600 mt-6 mb-2">{children}</h3>,
+                        h1: ({children}) => <h1 className={`text-xl lg:text-3xl font-black text-emerald-800 leading-tight border-b border-slate-150 pb-3 mt-4 mb-4 tracking-tight ${isRtl ? 'text-right' : 'text-left'}`}>{children}</h1>,
+                        h2: ({children}) => <h2 className={`text-lg lg:text-xl font-black text-slate-800 leading-tight mt-8 mb-4 border-emerald-500 ${isRtl ? 'border-r-4 pr-3 text-right' : 'border-l-4 pl-3 text-left'}`}>{children}</h2>,
+                        h3: ({children}) => <h3 className={`text-base font-bold text-slate-600 mt-6 mb-2 ${isRtl ? 'text-right' : 'text-left'}`}>{children}</h3>,
                         p: ({children}) => {
                           // Simple client search highlighting
                           if (searchQuery.trim() && typeof children === 'string') {
                             const query = searchQuery.trim();
                             const parts = children.split(new RegExp(`(${query})`, 'gi'));
                             return (
-                              <p className="text-xs lg:text-sm text-slate-700 leading-relaxed mb-4 text-justify mt-1">
+                              <p className={`text-xs lg:text-sm text-slate-700 leading-relaxed mb-4 text-justify mt-1 ${isRtl ? 'text-right' : 'text-left'}`}>
                                 {parts.map((part, i) => 
                                   part.toLowerCase() === query.toLowerCase() 
                                     ? <mark key={i} className="bg-yellow-200 text-yellow-900 rounded font-bold px-0.5">{part}</mark> 
@@ -680,12 +688,12 @@ export default function LessonViewer({
                               </p>
                             );
                           }
-                          return <p className="text-xs lg:text-sm text-slate-700 leading-relaxed mb-4 text-justify mt-1">{children}</p>;
+                          return <p className={`text-xs lg:text-sm text-slate-700 leading-relaxed mb-4 text-justify mt-1 ${isRtl ? 'text-right' : 'text-left'}`}>{children}</p>;
                         },
-                        ul: ({children}) => <ul className="list-disc list-inside pr-4 space-y-2 text-xs lg:text-sm mt-2 mb-4 text-slate-700" dir="rtl">{children}</ul>,
-                        ol: ({children}) => <ol className="list-decimal list-inside pr-4 space-y-2 text-xs lg:text-sm mt-2 mb-4 text-slate-700" dir="rtl">{children}</ol>,
-                        li: ({children}) => <li className="mb-1 leading-normal text-slate-700 font-semibold">{children}</li>,
-                        blockquote: ({children}) => <blockquote className="border-r-4 border-slate-300 pr-4 italic text-slate-500 my-4 py-1 text-xs">{children}</blockquote>,
+                        ul: ({children}) => <ul className={`list-disc list-inside space-y-2 text-xs lg:text-sm mt-2 mb-4 text-slate-700 ${isRtl ? 'pr-4 text-right' : 'pl-4 text-left'}`} dir={isRtl ? 'rtl' : 'ltr'}>{children}</ul>,
+                        ol: ({children}) => <ol className={`list-decimal list-inside space-y-2 text-xs lg:text-sm mt-2 mb-4 text-slate-700 ${isRtl ? 'pr-4 text-right' : 'pl-4 text-left'}`} dir={isRtl ? 'rtl' : 'ltr'}>{children}</ol>,
+                        li: ({children}) => <li className={`mb-1 leading-normal text-slate-700 font-semibold ${isRtl ? 'text-right' : 'text-left'}`}>{children}</li>,
+                        blockquote: ({children}) => <blockquote className={`border-slate-300 italic text-slate-500 my-4 py-1 text-xs ${isRtl ? 'border-r-4 pr-4 text-right' : 'border-l-4 pl-4 text-left'}`}>{children}</blockquote>,
                         hr: () => <hr className="my-8 border-t-2 border-slate-100 border-dashed" />,
                         strong: ({children}) => <strong className="font-extrabold text-slate-900">{children}</strong>
                       }}

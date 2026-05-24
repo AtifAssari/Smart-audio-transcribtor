@@ -56,6 +56,7 @@ export default function LessonTranscriber({
 
   // Local compression states
   const [compressLocally, setCompressLocally] = useState(true);
+  const [localModelSize, setLocalModelSize] = useState<string>("small");
   const [localProcessingStatus, setLocalProcessingStatus] = useState("");
   const [isLocalProcessing, setIsLocalProcessing] = useState(false);
 
@@ -83,8 +84,8 @@ export default function LessonTranscriber({
     }
   }, [selectedCourseId, courses]);
 
-  const MAX_RAW_FILE_SIZE_MB = 22; // Direct upload threshold for Cloud Run (32MB limit, safe margin 22MB to avoid base64 overhead)
-  const MAX_INPUT_FILE_SIZE_MB = 150; // Browser local decoding limit (reduced to avoid Web Audio API Memory limits)
+  const MAX_RAW_FILE_SIZE_MB = 350; // Direct upload threshold for local Whisper uploads
+  const MAX_INPUT_FILE_SIZE_MB = 350; // Browser local decoding limit
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -333,6 +334,7 @@ export default function LessonTranscriber({
 
     const formData = new FormData();
     formData.append("courseId", courseId);
+    formData.append("localModelSize", localModelSize);
     
     const finalTitle = title.trim() || (sourceType === 'file' ? file?.name : sourceType === 'paste' ? "نص ملصق يدوي" : url.split('/').pop()) || "درس مفرغ غير مسمى";
     formData.append("title", finalTitle);
@@ -704,6 +706,23 @@ export default function LessonTranscriber({
                       ⚡ تحويل وتسييل الصوت محلياً بالجهاز (آمن، يوفر النت والرفع بنسبة 90%)
                     </span>
                   </label>
+                </div>
+
+                {/* Whisper Model Size Selector */}
+                <div className="pt-1.5 flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+                    ⚙️ حجم نموذج Whisper المحلي (أكبر = أدق وأبطأ)
+                  </label>
+                  <select
+                    value={localModelSize}
+                    onChange={(e) => setLocalModelSize(e.target.value)}
+                    className="w-full text-xs p-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white transition-all text-slate-700 font-semibold cursor-pointer"
+                  >
+                    <option value="tiny">Tiny (أسرع، دقة متواضعة)</option>
+                    <option value="base">Base (سريع، دقة مقبولة)</option>
+                    <option value="small">Small (متوازن ومقترح)</option>
+                    <option value="medium">Medium (أبطأ، دقة عالية جداً)</option>
+                  </select>
                 </div>
               </div>
             )}
