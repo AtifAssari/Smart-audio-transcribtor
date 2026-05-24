@@ -172,7 +172,7 @@ export default function App() {
         // Revoke Object URL to delete the file object from memory
         URL.revokeObjectURL(tempFile.url);
         setTempFile(null);
-        alert("⚠️ تنبيه هام: انتهت صلاحية الملف الصوتي المضغوط المؤقت (دقيقة واحدة فقط) وتم التخلص منه وحذفه تماماً من الذاكرة محلياً لخصوصية تامة ومراعاة للمساحة.");
+// alert removed
       }
     }, 1000);
 
@@ -196,7 +196,7 @@ export default function App() {
     });
     setTimeLeft(duration);
 
-    alert("🎵 تم إعداد ملفك الصوتي المضغوط بمتانة محلياً! سيتوفر للتنزيل لمدة دقيقة واحدة فقط عبر الإشعار العائم المخصص في أسفل الشاشة قبل حذفه تلقائياً.");
+// alert removed
   };
 
   // Handler: Creation of new Folder/Course (Can be root or nested subfolder)
