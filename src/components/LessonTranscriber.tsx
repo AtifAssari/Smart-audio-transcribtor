@@ -35,6 +35,17 @@ const RUNNING_LOGS_ARABIC = [
   "🚀 المقاطع الأخيرة تكتمل الآن.. أوشكنا على وضع اللمسات النهائية!"
 ];
 
+const RUNNING_LOGS_PASTE_ARABIC = [
+  "📥 جاري استقبال النص المكتوب للبدء الهيكلي...",
+  "📝 يقوم الذكاء الاصطناعي حالياً بقراءة الكلمات والتعرف على سياق الموضوع...",
+  "⚡ ترتيب الفقرات وتنظيم المحتوى وفقاً لأفضل ممارسات الكتابة العربية...",
+  "🏷️ تصميم وإنشاء عناوين رئيسية وفرعية مناسبة للموضوع...",
+  "🌟 فرز الأفكار الجوهرية وصياغتها بنظام النقاط التعدادية الأنيقة...",
+  "🎨 تطبيق قواعد لغة الماركداون (Markdown) لإبراز الجمل والكلمات الهامة...",
+  "✍️ صيانة تماسك الفقرات ليصبح النص غنياً وسهل القراءة بصرية...",
+  "🚀 المراجعة النهائية تكتمل الآن.. أوشكنا على وضع اللمسات التجميلية!"
+];
+
 export default function LessonTranscriber({
   courses,
   selectedCourseId,
@@ -64,15 +75,16 @@ export default function LessonTranscriber({
   // Rotate loading logs for interactive patience stimulation
   useEffect(() => {
     let interval: any;
+    const currentLogsLength = sourceType === 'paste' ? RUNNING_LOGS_PASTE_ARABIC.length : RUNNING_LOGS_ARABIC.length;
     if (isLoading) {
       interval = setInterval(() => {
-        setLoadingLogIndex((prev) => (prev + 1) % RUNNING_LOGS_ARABIC.length);
+        setLoadingLogIndex((prev) => (prev + 1) % currentLogsLength);
       }, 5500);
     } else {
       setLoadingLogIndex(0);
     }
     return () => clearInterval(interval);
-  }, [isLoading]);
+  }, [isLoading, sourceType]);
 
   // Set default course ID if it changes
   useEffect(() => {
@@ -519,19 +531,21 @@ export default function LessonTranscriber({
 
             <div className="space-y-3 max-w-sm">
               <h3 className="font-bold text-slate-800 text-sm">
-                {isLocalProcessing ? "جاري استخراج وضغط الصوت محلياً..." : "جاري التفريغ وصياغة البنية الذكية..."}
+                {isLocalProcessing ? "جاري استخراج وضغط الصوت محلياً..." : (sourceType === 'paste' ? "جاري تنسيق وترتيب النص ذكياً..." : "جاري التفريغ وصياغة البنية الذكية...")}
               </h3>
               <p className="text-xs text-slate-500 leading-normal">
                 {isLocalProcessing 
                   ? "يتم الآن قراءة الملف وفصل الصوت وضغطه إلى صيغة WAV أحادية لتوفير استهلاك الإنترنت بنسبة تفوق 90% وضمان رفع فوري ناجح." 
-                  : "الرجاء عدم إغلاق هذه النافذة أو مغادرة الصفحة. تستغرق المعالجة من 30 ثانية إلى دقيقتين بحسب طول المادة الصوتية."}
+                  : sourceType === 'paste' 
+                    ? "الرجاء المكوث قليلاً بينما يقوم الذكاء الاصطناعي بقراءة النص وهيكلته بذكاء وتجميل نبراته لغوياً وتنسيق عناصره."
+                    : "الرجاء عدم إغلاق هذه النافذة أو مغادرة الصفحة. تستغرق المعالجة من 30 ثانية إلى دقيقتين بحسب طول المادة الصوتية."}
               </p>
             </div>
 
             {/* Smart Rotating Log Message */}
             <div className="w-full max-w-xs bg-white/80 border border-slate-100 shadow-sm p-3.5 rounded-xl min-h-[70px] flex items-center justify-center">
               <p className="text-xs font-semibold text-emerald-800 leading-relaxed animate-fadeIn">
-                {isLocalProcessing ? localProcessingStatus : (streamingProgress || RUNNING_LOGS_ARABIC[loadingLogIndex])}
+                {isLocalProcessing ? localProcessingStatus : (streamingProgress || (sourceType === 'paste' ? RUNNING_LOGS_PASTE_ARABIC[loadingLogIndex] : RUNNING_LOGS_ARABIC[loadingLogIndex]))}
               </p>
             </div>
           </div>
