@@ -310,6 +310,13 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Enable Cross-Origin Isolation headers for FFmpeg WebAssembly
+  app.use((req, res, next) => {
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+    res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+    next();
+  });
+
   // Multer configurations: Store uploaded files directly on disk to prevent RAM OOM crashes
   const storage = multer.diskStorage({
     destination: (req, file, cb) => {

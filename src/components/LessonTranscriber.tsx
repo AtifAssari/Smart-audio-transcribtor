@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Course, TranscriptionItem, ServerResponse } from "../types";
+import { FFmpeg } from "@ffmpeg/ffmpeg";
+import { fetchFile, toBlobURL } from "@ffmpeg/util";
 import { 
   X, 
   Upload, 
@@ -65,13 +67,14 @@ export default function LessonTranscriber({
   const [errorMessage, setErrorMessage] = useState("");
   const [streamingProgress, setStreamingProgress] = useState("");
 
-  // Local compression states
-  const [compressLocally, setCompressLocally] = useState(true);
+  // Local processing states
+  const [processingMethod, setProcessingMethod] = useState<'direct' | 'ffmpeg'>('direct');
   const [localModelSize, setLocalModelSize] = useState<string>("small");
   const [localProcessingStatus, setLocalProcessingStatus] = useState("");
   const [isLocalProcessing, setIsLocalProcessing] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const ffmpegRef = useRef<any>(null);
 
   // Rotate loading logs for interactive patience stimulation
   useEffect(() => {
@@ -104,9 +107,9 @@ export default function LessonTranscriber({
       const selectedFile = e.target.files[0];
       const fileSizeInMB = selectedFile.size / (1024 * 1024);
       
-      // Auto-disable local compression for large files (>300MB) to prevent browser crash
+      // Auto-toggle to direct upload for large files (>300MB) as it is faster on localhost
       if (fileSizeInMB > 300) {
-        setCompressLocally(false);
+        setProcessingMethod('direct');
       }
       
       if (fileSizeInMB > MAX_RAW_FILE_SIZE_MB) {
@@ -137,9 +140,9 @@ export default function LessonTranscriber({
       if (selectedFile.type.startsWith('audio/') || selectedFile.type.startsWith('video/')) {
         const fileSizeInMB = selectedFile.size / (1024 * 1024);
         
-        // Auto-disable local compression for large files (>300MB) to prevent browser crash
+        // Auto-toggle to direct upload for large files (>300MB) as it is faster on localhost
         if (fileSizeInMB > 300) {
-          setCompressLocally(false);
+          setProcessingMethod('direct');
         }
         
         if (fileSizeInMB > MAX_RAW_FILE_SIZE_MB) {
@@ -160,128 +163,79 @@ export default function LessonTranscriber({
     }
   };
 
-  // WAV writing helpers
-  const writeStringHelper = (view: DataView, offset: number, stringStr: string) => {
-    for (let i = 0; i < stringStr.length; i++) {
-      view.setUint8(offset + i, stringStr.charCodeAt(i));
-    }
-  };
-
-  const bufferToWav = (audioBuffer: AudioBuffer): Blob => {
-    const numOfChan = 1; // force mono
-    const sampleRate = 16000; // Gemini speech optimizations
-    const format = 1; // raw PCM
-    const bitDepth = 16;
+  const loadFFmpeg = async () => {
+    if (ffmpegRef.current) return ffmpegRef.current;
     
-    let samples: Float32Array;
-    if (audioBuffer.sampleRate === sampleRate) {
-      samples = audioBuffer.getChannelData(0);
-    } else {
-      // Linear interpolation downsampler
-      const originalRate = audioBuffer.sampleRate;
-      const ratio = originalRate / sampleRate;
-      const originalData = audioBuffer.getChannelData(0);
-      const newLength = Math.round(originalData.length / ratio);
-      samples = new Float32Array(newLength);
-      for (let i = 0; i < newLength; i++) {
-        samples[i] = originalData[Math.min(Math.round(i * ratio), originalData.length - 1)];
-      }
-    }
-
-    const result = new Int16Array(samples.length);
-    for (let i = 0; i < samples.length; i++) {
-      let s = Math.max(-1, Math.min(1, samples[i]));
-      result[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-    }
-
-    const arrayBuf = new ArrayBuffer(44 + result.length * 2);
-    const view = new DataView(arrayBuf);
-
-    writeStringHelper(view, 0, 'RIFF');
-    view.setUint32(4, 36 + result.length * 2, true);
-    writeStringHelper(view, 8, 'WAVE');
-    writeStringHelper(view, 12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, format, true);
-    view.setUint16(22, numOfChan, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * 2, true);
-    view.setUint16(32, numOfChan * 2, true);
-    view.setUint16(34, bitDepth, true);
-    writeStringHelper(view, 36, 'data');
-    view.setUint32(40, result.length * 2, true);
-
-    for (let i = 0; i < result.length; i++) {
-      view.setInt16(44 + i * 2, result[i], true);
-    }
-
-    return new Blob([view], { type: 'audio/wav' });
+    setLocalProcessingStatus("⚙️ جاري تحميل مكتبة FFmpeg WebAssembly من السحابة...");
+    const ffmpeg = new FFmpeg();
+    const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm';
+    
+    await ffmpeg.load({
+      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+    });
+    
+    ffmpegRef.current = ffmpeg;
+    return ffmpeg;
   };
 
-  const extractAudioLocally = async (inputFile: File): Promise<File> => {
+  const extractAudioFFmpeg = async (inputFile: File): Promise<File> => {
     setIsLocalProcessing(true);
-    setLocalProcessingStatus("📥 جاري قراءة بيانات الملف من الذاكرة المحلية...");
+    setLocalProcessingStatus("⚙️ جاري بدء تشغيل مكتبة FFmpeg في المتصفح...");
     
     try {
-      const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          if (e.target?.result instanceof ArrayBuffer) {
-            resolve(e.target.result);
-          } else {
-            reject(new Error("فشل قراءة الملف كبنية ArrayBuffer"));
-          }
-        };
-        reader.onerror = () => reject(new Error("حدث خطأ أثناء قراءة الملف من جهازك."));
-        
-        reader.onprogress = (event) => {
-          if (event.lengthComputable) {
-            const pct = Math.round((event.loaded / event.total) * 100);
-            setLocalProcessingStatus(`📥 جاري قراءة بيانات الملف المحدّد في الذاكرة الموقتة (${pct}%)...`);
-          }
-        };
-        
-        reader.readAsArrayBuffer(inputFile);
+      const ffmpeg = await loadFFmpeg();
+      
+      setLocalProcessingStatus("📥 جاري تجهيز وقراءة ملف الميديا...");
+      const inputName = "input_" + inputFile.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+      const outputName = "output.mp3";
+      
+      await ffmpeg.writeFile(inputName, await fetchFile(inputFile));
+      
+      setLocalProcessingStatus("🧠 جاري عزل وتسييل الصوت وتجاهل مسار الفيديو (FFmpeg)...");
+      
+      ffmpeg.on("log", ({ message }) => {
+        console.log("[FFmpeg WASM Log]", message);
+        if (message.includes("size=")) {
+          setLocalProcessingStatus(`⚡ جاري استخراج الصوت وتشفيره (FFmpeg)... ${message.substring(message.indexOf("size="))}`);
+        }
       });
 
-      setLocalProcessingStatus("⚙️ جاري تشغيل وحدة فك الترميز الصوتي في المتصفّح...");
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) {
-        throw new Error("المتصفح الحالي لا يدعم تقنية Web Audio API لفك الترميز محلياً.");
-      }
+      await ffmpeg.exec([
+        "-y",
+        "-i", inputName,
+        "-vn",
+        "-acodec", "libmp3lame",
+        "-ac", "1",
+        "-ar", "16000",
+        "-ab", "64k",
+        outputName
+      ]);
       
-      const audioCtx = new AudioCtx();
-      setLocalProcessingStatus("🧠 جاري استخراج المسار الصوتي وتفكيك ذبذبات الفيديو...");
-      
-      let decodedBuffer: AudioBuffer;
-      try {
-        decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-      } catch (decodeErr: any) {
-        console.error("Decoding error:", decodeErr);
-        throw new Error("فشل المتصفح في استخراج الصوت من هذا الملف. يرجى التأكد من أنه ملف مرئي أو مسموع صالح وعير تالف.");
-      } finally {
-        await audioCtx.close();
-      }
-
-      setLocalProcessingStatus("⚡ جاري ضغط ذبذبات الصوت وتحويلها إلى أحادي خفيف (16kHz Mono WAV)...");
-      
-      const wavBlob = bufferToWav(decodedBuffer);
+      setLocalProcessingStatus("💾 جاري حفظ ملف الصوت المستخلص...");
+      const data = await ffmpeg.readFile(outputName);
       
       const originalNameWithoutExt = inputFile.name.substring(0, inputFile.name.lastIndexOf('.')) || inputFile.name;
-      const compressedFile = new File([wavBlob], `${originalNameWithoutExt}_audio.wav`, {
-        type: "audio/wav",
+      const compressedFile = new File([data], `${originalNameWithoutExt}_audio.mp3`, {
+        type: "audio/mp3",
         lastModified: Date.now()
       });
       
+      // Clean up virtual files
+      try {
+        await ffmpeg.deleteFile(inputName);
+        await ffmpeg.deleteFile(outputName);
+      } catch (e) {}
+
       const originalSize = (inputFile.size / (1024 * 1024)).toFixed(1);
       const compressedSize = (compressedFile.size / (1024 * 1024)).toFixed(1);
-      console.log(`Local extraction succeeded: ${originalSize}MB -> ${compressedSize}MB`);
+      console.log(`FFmpeg WASM extraction succeeded: ${originalSize}MB -> ${compressedSize}MB`);
       
       return compressedFile;
       
     } catch (err: any) {
       console.error(err);
-      throw new Error(err.message || "فشلت عملية الضغط المحلي.");
+      throw new Error(err.message || "فشلت عملية استخراج الصوت عبر FFmpeg.");
     } finally {
       setIsLocalProcessing(false);
       setLocalProcessingStatus("");
@@ -312,31 +266,21 @@ export default function LessonTranscriber({
     let fileToUpload = file;
     if (sourceType === 'file' && file) {
       const fileSizeInMB = file.size / (1024 * 1024);
-      
-      // Auto-disable compression for large files (>300MB) to prevent browser crash,
-      // ensuring we proceed without compression even if the checkbox state was not synchronized
-      let activeCompressLocally = compressLocally;
-      if (fileSizeInMB > 300) {
-        activeCompressLocally = false;
-        if (compressLocally) {
-          setCompressLocally(false);
-        }
-      }
 
-      if (activeCompressLocally) {
+      if (processingMethod === 'ffmpeg') {
         try {
-          const compFile = await extractAudioLocally(file);
+          const compFile = await extractAudioFFmpeg(file);
           fileToUpload = compFile;
           if (onCompressedFileAvailable) {
             onCompressedFileAvailable(compFile);
           }
         } catch (localErr: any) {
-          setErrorMessage(`⚠️ تعذر تسييل وتخفيف الصوت محلياً: ${localErr.message}. يمكنك إلغاء خيار "الضغط المحلي" ومحاولة الرفع المباشر إذا كان حجم ملفك صغيراً جداً.`);
+          setErrorMessage(`⚠️ تعذر استخلاص وتخفيف الصوت محلياً عبر FFmpeg: ${localErr.message}. يمكنك اختيار "الرفع المباشر والسريع" لرفع الملف بالكامل بدون معالجة في المتصفح.`);
           return;
         }
       } else {
         if (fileSizeInMB > MAX_RAW_FILE_SIZE_MB) {
-          setErrorMessage(`⚠️ حجم الملف المستورد (${fileSizeInMB.toFixed(1)} ميجابايت) يتجاوز سقف الرفع المباشر بدون ضغط (2000 ميجابايت).`);
+          setErrorMessage(`⚠️ حجم الملف المستورد (${fileSizeInMB.toFixed(1)} ميجابايت) يتجاوز سقف الرفع المباشر بدون ضغط (${MAX_RAW_FILE_SIZE_MB} ميجابايت).`);
           return;
         }
       }
@@ -714,34 +658,47 @@ export default function LessonTranscriber({
                   )}
                 </div>
 
-                {/* Local Compression Config Toggle */}
-                <div className="pt-1 flex items-center justify-center">
-                  <label className={`inline-flex items-center gap-2 cursor-pointer border p-2 rounded-xl transition-all w-full justify-center ${
-                    file && (file.size / (1024 * 1024) > 300)
-                    ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
-                    : 'bg-emerald-50/80 hover:bg-emerald-100/60 border-emerald-150/55 text-emerald-800'
-                  }`}>
-                    <input
-                      type="checkbox"
-                      checked={compressLocally}
-                      disabled={!!(file && (file.size / (1024 * 1024) > 300))}
-                      onChange={(e) => {
-                        setCompressLocally(e.target.checked);
-                        // Clear file if it violates boundaries when turning off compression
-                        if (!e.target.checked && file && (file.size / (1024 * 1024) > MAX_RAW_FILE_SIZE_MB)) {
+                {/* Local Processing Method Selector */}
+                <div className="pt-2.5 space-y-2">
+                  <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+                    ⚡ خيار معالجة الملف واستخلاص الصوت
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProcessingMethod('direct');
+                        if (file && (file.size / (1024 * 1024) > MAX_RAW_FILE_SIZE_MB)) {
                           setFile(null);
-                          setErrorMessage(`⚠️ تم إلغاء تحديد الملف السابق لأن حجمه يتجاوز حد الرفع المباشر (${MAX_RAW_FILE_SIZE_MB} ميجابايت) بدون ضغط محلّي للملف.`);
+                          setErrorMessage(`⚠️ تم إلغاء تحديد الملف السابق لأن حجمه يتجاوز حد الرفع المباشر (${MAX_RAW_FILE_SIZE_MB} ميجابايت).`);
                         }
                       }}
-                      className="rounded border-slate-350 text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                    <span className="text-[11px] font-bold select-none">
-                      {file && (file.size / (1024 * 1024) > 300)
-                        ? "⚡ الضغط المحلي معطل تلقائياً للملفات الكبيرة (> 300 ميجابايت) لتفادي توقف المتصفح"
-                        : "⚡ تحويل وتسييل الصوت محلياً بالجهاز (آمن، يوفر النت والرفع بنسبة 90%)"
-                      }
-                    </span>
-                  </label>
+                      className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all text-center cursor-pointer ${
+                        processingMethod === 'direct'
+                        ? 'border-emerald-500 bg-emerald-50/40 text-emerald-900 shadow-xs'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="text-[11px] font-bold">🚀 الرفع المباشر والسريع</span>
+                      <span className="text-[9px] text-slate-400 mt-1 font-medium leading-relaxed">
+                        (مستحسن للجهاز المحلي) رفع فوري للملف الخام وبدء المعالجة مباشرة.
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProcessingMethod('ffmpeg')}
+                      className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all text-center cursor-pointer ${
+                        processingMethod === 'ffmpeg'
+                        ? 'border-emerald-500 bg-emerald-50/40 text-emerald-900 shadow-sm'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="text-[11px] font-bold">⚙️ استخراج الصوت (FFmpeg)</span>
+                      <span className="text-[9px] text-slate-400 mt-1 font-medium leading-relaxed">
+                        (آمن وموفر للمساحة) استخلاص مسار الصوت فقط في المتصفح قبل رفعه.
+                      </span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Whisper Model Size Selector */}
