@@ -370,7 +370,7 @@ async function startServer() {
       """`;
 
       const result = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-1.5-flash",
         contents: [
           {
             text: prompt
@@ -557,7 +557,7 @@ async function startServer() {
       let resultStream;
       try {
         resultStream = await ai.models.generateContentStream({
-          model: "gemini-3.5-flash",
+          model: "gemini-1.5-flash",
           contents: contents
         });
       } catch (geminiInitErr: any) {
