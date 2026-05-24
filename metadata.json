@@ -1,0 +1,6 @@
+{
+  "name": "Smart Audio Transcriber",
+  "description": "An intelligent full-stack voice/video transcription and organization system. Organizes transcriptions into custom folders/courses with professional structuring, formatting, and multiple format exports (PDF, Word, Markdown).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

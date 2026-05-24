@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Smart Audio Transcriber</title>
+    <!-- Defensive global fetch patch to prevent read-only property assignment crashes in sandboxed and custom browser environments -->
+    <script>
+      (function() {
+        function patch(obj) {
+          try {
+            if (!obj) return;
+            const desc = Object.getOwnPropertyDescriptor(obj, 'fetch');
+            if (desc && !desc.configurable) return;
+            const originalFetch = obj.fetch;
+            let customFetch = originalFetch;
+            Object.defineProperty(obj, 'fetch', {
+              get() { return customFetch; },
+              set(val) { customFetch = val; },
+              configurable: true,
+              enumerable: true
+            });
+          } catch (e) {}
+        }
+        patch(window);
+        patch(Window.prototype);
+        patch(globalThis);
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
