@@ -105,7 +105,7 @@ export default function LessonTranscriber({
       const fileSizeInMB = selectedFile.size / (1024 * 1024);
       
       // Auto-disable local compression for large files (>300MB) to prevent browser crash
-      if (fileSizeInMB > 300 && compressLocally) {
+      if (fileSizeInMB > 300) {
         setCompressLocally(false);
       }
       
@@ -138,7 +138,7 @@ export default function LessonTranscriber({
         const fileSizeInMB = selectedFile.size / (1024 * 1024);
         
         // Auto-disable local compression for large files (>300MB) to prevent browser crash
-        if (fileSizeInMB > 300 && compressLocally) {
+        if (fileSizeInMB > 300) {
           setCompressLocally(false);
         }
         
@@ -311,7 +311,19 @@ export default function LessonTranscriber({
 
     let fileToUpload = file;
     if (sourceType === 'file' && file) {
-      if (compressLocally) {
+      const fileSizeInMB = file.size / (1024 * 1024);
+      
+      // Auto-disable compression for large files (>300MB) to prevent browser crash,
+      // ensuring we proceed without compression even if the checkbox state was not synchronized
+      let activeCompressLocally = compressLocally;
+      if (fileSizeInMB > 300) {
+        activeCompressLocally = false;
+        if (compressLocally) {
+          setCompressLocally(false);
+        }
+      }
+
+      if (activeCompressLocally) {
         try {
           const compFile = await extractAudioLocally(file);
           fileToUpload = compFile;
@@ -323,9 +335,8 @@ export default function LessonTranscriber({
           return;
         }
       } else {
-        const fileSizeInMB = file.size / (1024 * 1024);
         if (fileSizeInMB > MAX_RAW_FILE_SIZE_MB) {
-          setErrorMessage(`⚠️ حجم الملف المستورد (${fileSizeInMB.toFixed(1)} ميجابايت) يتجاوز سقف الرفع المباشر بدون ضغط (2000 ميجابايت). يرجى التفضل بتفعيل خيار "الضغط المحلي" أولاً لتسييل وضغط الملف بمقدار 10 أضعاف ورفعه بنجاح.`);
+          setErrorMessage(`⚠️ حجم الملف المستورد (${fileSizeInMB.toFixed(1)} ميجابايت) يتجاوز سقف الرفع المباشر بدون ضغط (2000 ميجابايت).`);
           return;
         }
       }
@@ -705,10 +716,15 @@ export default function LessonTranscriber({
 
                 {/* Local Compression Config Toggle */}
                 <div className="pt-1 flex items-center justify-center">
-                  <label className="inline-flex items-center gap-2 cursor-pointer bg-emerald-50/80 hover:bg-emerald-100/60 border border-emerald-150/55 p-2 rounded-xl transition-all w-full justify-center">
+                  <label className={`inline-flex items-center gap-2 cursor-pointer border p-2 rounded-xl transition-all w-full justify-center ${
+                    file && (file.size / (1024 * 1024) > 300)
+                    ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                    : 'bg-emerald-50/80 hover:bg-emerald-100/60 border-emerald-150/55 text-emerald-800'
+                  }`}>
                     <input
                       type="checkbox"
                       checked={compressLocally}
+                      disabled={!!(file && (file.size / (1024 * 1024) > 300))}
                       onChange={(e) => {
                         setCompressLocally(e.target.checked);
                         // Clear file if it violates boundaries when turning off compression
@@ -717,10 +733,13 @@ export default function LessonTranscriber({
                           setErrorMessage(`⚠️ تم إلغاء تحديد الملف السابق لأن حجمه يتجاوز حد الرفع المباشر (${MAX_RAW_FILE_SIZE_MB} ميجابايت) بدون ضغط محلّي للملف.`);
                         }
                       }}
-                      className="rounded border-slate-350 text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                      className="rounded border-slate-350 text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     />
-                    <span className="text-[11px] font-bold text-emerald-800 select-none">
-                      ⚡ تحويل وتسييل الصوت محلياً بالجهاز (آمن، يوفر النت والرفع بنسبة 90%)
+                    <span className="text-[11px] font-bold select-none">
+                      {file && (file.size / (1024 * 1024) > 300)
+                        ? "⚡ الضغط المحلي معطل تلقائياً للملفات الكبيرة (> 300 ميجابايت) لتفادي توقف المتصفح"
+                        : "⚡ تحويل وتسييل الصوت محلياً بالجهاز (آمن، يوفر النت والرفع بنسبة 90%)"
+                      }
                     </span>
                   </label>
                 </div>
