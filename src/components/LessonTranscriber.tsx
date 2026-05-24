@@ -99,21 +99,22 @@ export default function LessonTranscriber({
   const MAX_RAW_FILE_SIZE_MB = 2000; // Direct upload threshold for local Whisper uploads
   const MAX_INPUT_FILE_SIZE_MB = 350; // Browser local decoding limit
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const selectedFile = e.target.files[0];
       const fileSizeInMB = selectedFile.size / (1024 * 1024);
       
-      const allowedLimit = compressLocally ? MAX_INPUT_FILE_SIZE_MB : MAX_RAW_FILE_SIZE_MB;
-      if (fileSizeInMB > allowedLimit) {
-        if (compressLocally) {
-          setErrorMessage(`⚠️ حجم الملف كبير جداً (${fileSizeInMB.toFixed(1)} ميجابايت). الحد الأقصى للمستوردات مع تفعيل خيار الضغط محلياً هو ${MAX_INPUT_FILE_SIZE_MB} ميجابايت.`);
-        } else {
-          setErrorMessage(`⚠️ حجم الملف (${fileSizeInMB.toFixed(1)} ميجابايت) يتجاوز الحد الأقصى للرفع المباشر الخالي من الضغط (${MAX_RAW_FILE_SIZE_MB} ميجابايت). يرجى التكرم بتفعيل خيار "الضغط المحلي" أولاً لمساندة الملفات الكبيرة والضخمة وسحلها بنجاح.`);
-        }
+      // Auto-disable local compression for large files (>300MB) to prevent browser crash
+      if (fileSizeInMB > 300 && compressLocally) {
+        setCompressLocally(false);
+      }
+      
+      if (fileSizeInMB > MAX_RAW_FILE_SIZE_MB) {
+        setErrorMessage(`⚠️ حجم الملف كبير جداً (${fileSizeInMB.toFixed(1)} ميجابايت). الحد الأقصى للرفع المباشر بدون ضغط هو ${MAX_RAW_FILE_SIZE_MB} ميجابايت.`);
         setFile(null);
         return;
       }
+      
       setErrorMessage("");
       setFile(selectedFile);
       if (!title) {
@@ -128,23 +129,25 @@ export default function LessonTranscriber({
     e.preventDefault();
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+    const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const selectedFile = e.dataTransfer.files[0];
       // Basic check if it's audio or video
       if (selectedFile.type.startsWith('audio/') || selectedFile.type.startsWith('video/')) {
         const fileSizeInMB = selectedFile.size / (1024 * 1024);
-        const allowedLimit = compressLocally ? MAX_INPUT_FILE_SIZE_MB : MAX_RAW_FILE_SIZE_MB;
-        if (fileSizeInMB > allowedLimit) {
-          if (compressLocally) {
-            setErrorMessage(`⚠️ حجم الملف كبير جداً (${fileSizeInMB.toFixed(1)} ميجابايت). الحد الأقصى مع تفعيل الضغط محلياً هو ${MAX_INPUT_FILE_SIZE_MB} ميجابايت.`);
-          } else {
-            setErrorMessage(`⚠️ الملف (${fileSizeInMB.toFixed(1)} ميجابايت) يتجاوز الحد الأقصى للرفع المباشر الخالي من الضغط (${MAX_RAW_FILE_SIZE_MB} ميجابايت). يرجى تفعيل خيار "الضغط المحلي" لمعالجة وتخفيف الملف بنسبة 90% لتسهيل تفريغه.`);
-          }
+        
+        // Auto-disable local compression for large files (>300MB) to prevent browser crash
+        if (fileSizeInMB > 300 && compressLocally) {
+          setCompressLocally(false);
+        }
+        
+        if (fileSizeInMB > MAX_RAW_FILE_SIZE_MB) {
+          setErrorMessage(`⚠️ حجم الملف كبير جداً (${fileSizeInMB.toFixed(1)} ميجابايت). الحد الأقصى للرفع المباشر بدون ضغط هو ${MAX_RAW_FILE_SIZE_MB} ميجابايت.`);
           setFile(null);
           return;
         }
+        
         setErrorMessage("");
         setFile(selectedFile);
         if (!title) {
