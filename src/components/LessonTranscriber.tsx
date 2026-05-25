@@ -69,7 +69,7 @@ export default function LessonTranscriber({
 
   // Local processing states
   const [processingMethod, setProcessingMethod] = useState<'direct' | 'ffmpeg'>('ffmpeg');
-  const [localModelSize, setLocalModelSize] = useState<string>("small");
+  const [localModelSize, setLocalModelSize] = useState<string>("medium");
   const [localProcessingStatus, setLocalProcessingStatus] = useState("");
   const [isLocalProcessing, setIsLocalProcessing] = useState(false);
 
@@ -693,22 +693,24 @@ export default function LessonTranscriber({
                   </div>
                 </div>
 
-                {/* Whisper Model Size Selector */}
-                <div className="pt-1.5 flex flex-col gap-1.5">
-                  <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
-                    ⚙️ حجم نموذج Whisper المحلي (أكبر = أدق وأبطأ)
-                  </label>
-                  <select
-                    value={localModelSize}
-                    onChange={(e) => setLocalModelSize(e.target.value)}
-                    className="w-full text-xs p-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white transition-all text-slate-700 font-semibold cursor-pointer"
-                  >
-                    <option value="tiny">Tiny (أسرع، دقة متواضعة)</option>
-                    <option value="base">Base (سريع، دقة مقبولة)</option>
-                    <option value="small">Small (متوازن ومقترح)</option>
-                    <option value="medium">Medium (أبطأ، دقة عالية جداً)</option>
-                  </select>
-                </div>
+                {/* Whisper Model Size Selector (Only visible for direct upload to avoid confusing users) */}
+                {processingMethod === 'direct' && (
+                  <div className="pt-1.5 flex flex-col gap-1.5 animate-fadeIn">
+                    <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+                      ⚙️ حجم نموذج Whisper المحلي (أكبر = أدق وأبطأ)
+                    </label>
+                    <select
+                      value={localModelSize}
+                      onChange={(e) => setLocalModelSize(e.target.value)}
+                      className="w-full text-xs p-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white transition-all text-slate-700 font-semibold cursor-pointer"
+                    >
+                      <option value="tiny">Tiny (أسرع، دقة متواضعة)</option>
+                      <option value="base">Base (سريع، دقة مقبولة)</option>
+                      <option value="small">Small (متوازن ومقترح)</option>
+                      <option value="medium">Medium (أبطأ، دقة عالية جداً)</option>
+                    </select>
+                  </div>
+                )}
               </div>
             )}
 
