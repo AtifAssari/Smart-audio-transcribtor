@@ -175,14 +175,14 @@ export default function LessonTranscriber({
 
     // Otherwise, start loading for the first time
     const ffmpeg = new FFmpeg();
-    const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm';
+    const origin = window.location.origin;
     
     globalFFmpegLoadingPromise = (async () => {
       setLocalProcessingStatus("📥 جاري تحميل أداة المُستخلِص (Extractor) لمرة واحدة فقط لتخفيف الحجم (~30 ميجابايت)...");
       
       await ffmpeg.load({
-        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+        coreURL: await toBlobURL(`${origin}/ffmpeg/ffmpeg-core.js`, 'text/javascript'),
+        wasmURL: await toBlobURL(`${origin}/ffmpeg/ffmpeg-core.wasm`, 'application/wasm'),
       });
       
       globalFFmpeg = ffmpeg;
