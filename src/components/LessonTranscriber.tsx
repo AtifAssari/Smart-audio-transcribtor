@@ -48,6 +48,10 @@ const RUNNING_LOGS_PASTE_ARABIC = [
   "🚀 المراجعة النهائية تكتمل الآن.. أوشكنا على وضع اللمسات التجميلية!"
 ];
 
+// Global variables to persist Extractor (FFmpeg) instance and avoid duplicate loading
+let globalFFmpeg: any = null;
+let globalFFmpegLoadingPromise: Promise<any> | null = null;
+
 export default function LessonTranscriber({
   courses,
   selectedCourseId,
@@ -156,41 +160,68 @@ export default function LessonTranscriber({
   };
 
   const loadFFmpeg = async () => {
-    if (ffmpegRef.current) return ffmpegRef.current;
-    
-    setLocalProcessingStatus("⚙️ جاري تحميل مكتبة FFmpeg WebAssembly من السحابة...");
+    // Check if the global instance is already loaded and ready
+    if (globalFFmpeg && globalFFmpeg.loaded) {
+      setLocalProcessingStatus("تم تجهيز أداة المُستخلِص (Extractor) بنجاح! جاري الانتقال لمرحلة استخراج الصوت...");
+      await new Promise(r => setTimeout(r, 600)); // Short pause for visual confirmation
+      return globalFFmpeg;
+    }
+
+    // If it's currently loading, wait for the existing loading promise
+    if (globalFFmpegLoadingPromise) {
+      setLocalProcessingStatus("جاري تهيئة أداة المُستخلِص (Extractor)...");
+      return globalFFmpegLoadingPromise;
+    }
+
+    // Otherwise, start loading for the first time
     const ffmpeg = new FFmpeg();
     const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm';
     
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-    });
-    
-    ffmpegRef.current = ffmpeg;
-    return ffmpeg;
+    globalFFmpegLoadingPromise = (async () => {
+      setLocalProcessingStatus("📥 جاري تحميل أداة المُستخلِص (Extractor) لمرة واحدة فقط لتخفيف الحجم (~30 ميجابايت)...");
+      
+      await ffmpeg.load({
+        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+      });
+      
+      globalFFmpeg = ffmpeg;
+      setLocalProcessingStatus("✅ تم اكتمال تنزيل وتثبيت أداة المُستخلِص (Extractor) بنجاح!");
+      await new Promise(r => setTimeout(r, 800)); // Short pause for visual confirmation
+      return ffmpeg;
+    })();
+
+    try {
+      const loadedFfmpeg = await globalFFmpegLoadingPromise;
+      return loadedFfmpeg;
+    } catch (err) {
+      globalFFmpegLoadingPromise = null; // Clear on error so it can be retried
+      throw err;
+    }
   };
 
   const extractAudioFFmpeg = async (inputFile: File): Promise<File> => {
     setIsLocalProcessing(true);
-    setLocalProcessingStatus("⚙️ جاري بدء تشغيل مكتبة FFmpeg في المتصفح...");
     
     try {
       const ffmpeg = await loadFFmpeg();
       
-      setLocalProcessingStatus("📥 جاري تجهيز وقراءة ملف الميديا...");
+      setLocalProcessingStatus("📥 جاري قراءة وتجميع بيانات ملف الميديا في الذاكرة...");
       const inputName = "input_" + inputFile.name.replace(/[^a-zA-Z0-9.-]/g, "_");
       const outputName = "output.mp3";
       
       await ffmpeg.writeFile(inputName, await fetchFile(inputFile));
       
-      setLocalProcessingStatus("🧠 جاري عزل وتسييل الصوت وتجاهل مسار الفيديو (FFmpeg)...");
+      setLocalProcessingStatus("🧠 جاري استخلاص مسار الصوت وتجاهل حجم الفيديو تماماً...");
       
+      // Setup progress listener
+      ffmpeg.on("progress", ({ progress }) => {
+        const pct = Math.round(progress * 100);
+        setLocalProcessingStatus(`⚡ جاري استخراج الصوت وتشفيره: ${pct}% المكتمل...`);
+      });
+
       ffmpeg.on("log", ({ message }) => {
         console.log("[FFmpeg WASM Log]", message);
-        if (message.includes("size=")) {
-          setLocalProcessingStatus(`⚡ جاري استخراج الصوت وتشفيره (FFmpeg)... ${message.substring(message.indexOf("size="))}`);
-        }
       });
 
       await ffmpeg.exec([
@@ -204,7 +235,7 @@ export default function LessonTranscriber({
         outputName
       ]);
       
-      setLocalProcessingStatus("💾 جاري حفظ ملف الصوت المستخلص...");
+      setLocalProcessingStatus("💾 تم استخلاص الصوت بنجاح! جاري تحضير ملف الصوت للرفع والبدء...");
       const data = await ffmpeg.readFile(outputName);
       
       const originalNameWithoutExt = inputFile.name.substring(0, inputFile.name.lastIndexOf('.')) || inputFile.name;
@@ -213,7 +244,7 @@ export default function LessonTranscriber({
         lastModified: Date.now()
       });
       
-      // Clean up virtual files
+      // Clean up virtual files to free WASM memory
       try {
         await ffmpeg.deleteFile(inputName);
         await ffmpeg.deleteFile(outputName);
@@ -227,7 +258,7 @@ export default function LessonTranscriber({
       
     } catch (err: any) {
       console.error(err);
-      throw new Error(err.message || "فشلت عملية استخراج الصوت عبر FFmpeg.");
+      throw new Error(err.message || "فشلت عملية استخراج الصوت عبر المُستخلِص.");
     } finally {
       setIsLocalProcessing(false);
       setLocalProcessingStatus("");
@@ -267,7 +298,7 @@ export default function LessonTranscriber({
             onCompressedFileAvailable(compFile);
           }
         } catch (localErr: any) {
-          setErrorMessage(`⚠️ تعذر استخلاص وتخفيف الصوت محلياً عبر FFmpeg: ${localErr.message}. يمكنك اختيار "الرفع المباشر والسريع" لرفع الملف بالكامل بدون معالجة في المتصفح.`);
+          setErrorMessage(`⚠️ تعذر استخلاص وتخفيف الصوت محلياً عبر أداة المُستخلِص (Extractor): ${localErr.message}. يمكنك اختيار "رفع الملف بالكامل (فيديو خام)" لرفع الملف بالكامل بدون معالجة في المتصفح.`);
           return;
         }
       } else {
@@ -483,11 +514,11 @@ export default function LessonTranscriber({
 
             <div className="space-y-3 max-w-sm">
               <h3 className="font-bold text-slate-800 text-sm">
-                {isLocalProcessing ? "جاري استخراج وضغط الصوت محلياً..." : (sourceType === 'paste' ? "جاري تنسيق وترتيب النص ذكياً..." : "جاري التفريغ وصياغة البنية الذكية...")}
+                {isLocalProcessing ? "جاري استخلاص الصوت محلياً..." : (sourceType === 'paste' ? "جاري تنسيق وترتيب النص ذكياً..." : "جاري التفريغ وصياغة البنية الذكية...")}
               </h3>
               <p className="text-xs text-slate-500 leading-normal">
                 {isLocalProcessing 
-                  ? "يتم الآن قراءة الملف وفصل الصوت وضغطه إلى صيغة WAV أحادية لتوفير استهلاك الإنترنت بنسبة تفوق 90% وضمان رفع فوري ناجح." 
+                  ? "يتم الآن تشغيل أداة المُستخلِص (Extractor) لتهيئة وعزل مسار الصوت لتوفير استهلاك الإنترنت وسرعة الرفع." 
                   : sourceType === 'paste' 
                     ? "الرجاء المكوث قليلاً بينما يقوم الذكاء الاصطناعي بقراءة النص وهيكلته بذكاء وتجميل نبراته لغوياً وتنسيق عناصره."
                     : "الرجاء عدم إغلاق هذه النافذة أو مغادرة الصفحة. تستغرق المعالجة من 30 ثانية إلى دقيقتين بحسب طول المادة الصوتية."}
