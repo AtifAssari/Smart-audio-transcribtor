@@ -160,6 +160,15 @@ export default function LessonTranscriber({
   };
 
   const loadFFmpeg = async () => {
+    // Verification: Check if browser supports SharedArrayBuffer (requires Cross-Origin Isolation headers)
+    const hasSharedArrayBuffer = typeof window.SharedArrayBuffer !== "undefined";
+    if (!hasSharedArrayBuffer) {
+      throw new Error(
+        "المتصفح يمنع تشغيل الأداة المحلية بسبب غياب حماية عزل الأصول (Cross-Origin Isolation).\n\n" +
+        "💡 الحل: يرجى التأكد من تشغيل التطبيق عبر السيرفر الرسمي، أو استخدام خيار 'رفع الملف بالكامل (فيديو خام)' لتفادي هذه الحماية."
+      );
+    }
+
     // Check if the global instance is already loaded and ready
     if (globalFFmpeg && globalFFmpeg.loaded) {
       setLocalProcessingStatus("تم تجهيز أداة المُستخلِص (Extractor) بنجاح! جاري الانتقال لمرحلة استخراج الصوت...");
@@ -180,10 +189,16 @@ export default function LessonTranscriber({
     globalFFmpegLoadingPromise = (async () => {
       setLocalProcessingStatus("📥 جاري تحميل أداة المُستخلِص (Extractor) لمرة واحدة فقط لتخفيف الحجم (~30 ميجابايت)...");
       
-      await ffmpeg.load({
+      const loadPromise = ffmpeg.load({
         coreURL: await toBlobURL(`${origin}/ffmpeg/ffmpeg-core.js`, 'text/javascript'),
         wasmURL: await toBlobURL(`${origin}/ffmpeg/ffmpeg-core.wasm`, 'application/wasm'),
       });
+
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("انتهت مهلة تحميل أداة المُستخلِص (12 ثانية). يرجى التحقق من لوحة تحكم المتصفح (F12 Console).")), 12000)
+      );
+
+      await Promise.race([loadPromise, timeoutPromise]);
       
       globalFFmpeg = ffmpeg;
       setLocalProcessingStatus("✅ تم اكتمال تنزيل وتثبيت أداة المُستخلِص (Extractor) بنجاح!");
