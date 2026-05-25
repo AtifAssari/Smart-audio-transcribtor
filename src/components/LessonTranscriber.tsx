@@ -68,7 +68,7 @@ export default function LessonTranscriber({
   const [streamingProgress, setStreamingProgress] = useState("");
 
   // Local processing states
-  const [processingMethod, setProcessingMethod] = useState<'direct' | 'ffmpeg'>('direct');
+  const [processingMethod, setProcessingMethod] = useState<'direct' | 'ffmpeg'>('ffmpeg');
   const [localModelSize, setLocalModelSize] = useState<string>("small");
   const [localProcessingStatus, setLocalProcessingStatus] = useState("");
   const [isLocalProcessing, setIsLocalProcessing] = useState(false);
@@ -107,11 +107,7 @@ export default function LessonTranscriber({
       const selectedFile = e.target.files[0];
       const fileSizeInMB = selectedFile.size / (1024 * 1024);
       
-      // Auto-toggle to direct upload for large files (>300MB) as it is faster on localhost
-      if (fileSizeInMB > 300) {
-        setProcessingMethod('direct');
-      }
-      
+      // No auto-toggle needed since FFmpeg WebAssembly streams and handles >300MB files stably
       if (fileSizeInMB > MAX_RAW_FILE_SIZE_MB) {
         setErrorMessage(`⚠️ حجم الملف كبير جداً (${fileSizeInMB.toFixed(1)} ميجابايت). الحد الأقصى للرفع المباشر بدون ضغط هو ${MAX_RAW_FILE_SIZE_MB} ميجابايت.`);
         setFile(null);
@@ -140,11 +136,7 @@ export default function LessonTranscriber({
       if (selectedFile.type.startsWith('audio/') || selectedFile.type.startsWith('video/')) {
         const fileSizeInMB = selectedFile.size / (1024 * 1024);
         
-        // Auto-toggle to direct upload for large files (>300MB) as it is faster on localhost
-        if (fileSizeInMB > 300) {
-          setProcessingMethod('direct');
-        }
-        
+        // No auto-toggle needed since FFmpeg WebAssembly streams and handles >300MB files stably
         if (fileSizeInMB > MAX_RAW_FILE_SIZE_MB) {
           setErrorMessage(`⚠️ حجم الملف كبير جداً (${fileSizeInMB.toFixed(1)} ميجابايت). الحد الأقصى للرفع المباشر بدون ضغط هو ${MAX_RAW_FILE_SIZE_MB} ميجابايت.`);
           setFile(null);
@@ -661,9 +653,23 @@ export default function LessonTranscriber({
                 {/* Local Processing Method Selector */}
                 <div className="pt-2.5 space-y-2">
                   <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
-                    ⚡ خيار معالجة الملف واستخلاص الصوت
+                    ⚡ خيار معالجة الملف
                   </label>
                   <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setProcessingMethod('ffmpeg')}
+                      className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all text-center cursor-pointer ${
+                        processingMethod === 'ffmpeg'
+                        ? 'border-emerald-500 bg-emerald-50/40 text-emerald-900 shadow-xs'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="text-[11px] font-bold">⚡ استخلاص الصوت المضغوط (افتراضي)</span>
+                      <span className="text-[9px] text-slate-400 mt-1 font-medium leading-relaxed">
+                        (موفر للإنترنت ومستقر جداً) يستخرج الصوت فقط من الفيديو لتقليص الحجم لـ 20MB بدلاً من 1GB.
+                      </span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -679,23 +685,9 @@ export default function LessonTranscriber({
                         : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                       }`}
                     >
-                      <span className="text-[11px] font-bold">🚀 الرفع المباشر والسريع</span>
+                      <span className="text-[11px] font-bold">🚀 رفع الملف بالكامل (فيديو خام)</span>
                       <span className="text-[9px] text-slate-400 mt-1 font-medium leading-relaxed">
-                        (مستحسن للجهاز المحلي) رفع فوري للملف الخام وبدء المعالجة مباشرة.
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setProcessingMethod('ffmpeg')}
-                      className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all text-center cursor-pointer ${
-                        processingMethod === 'ffmpeg'
-                        ? 'border-emerald-500 bg-emerald-50/40 text-emerald-900 shadow-sm'
-                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      <span className="text-[11px] font-bold">⚙️ استخراج الصوت (FFmpeg)</span>
-                      <span className="text-[9px] text-slate-400 mt-1 font-medium leading-relaxed">
-                        (آمن وموفر للمساحة) استخلاص مسار الصوت فقط في المتصفح قبل رفعه.
+                        (للشبكات السريعة والمحلية) رفع ملف الفيديو كما هو بدون استخلاص في المتصفح.
                       </span>
                     </button>
                   </div>
